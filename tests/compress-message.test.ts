@@ -50,6 +50,7 @@ function buildConfig(): PluginConfig {
             iterationNudgeThreshold: 15,
             nudgeForce: "soft",
             protectedTools: ["task"],
+            protectTags: false,
             protectUserMessages: false,
         },
         strategies: {
@@ -224,6 +225,64 @@ test("compress message mode batches individual message summaries", async () => {
     )
     assert.match(blocks[1]?.summary || "", /Tool: task/)
     assert.match(blocks[1]?.summary || "", /task output body/)
+})
+
+test("compress message mode appends protected prompt info", async () => {
+    const sessionID = `ses_message_protect_tag_${Date.now()}`
+    const rawMessages = buildMessages(sessionID)
+    const assistant = rawMessages.find((message) => message.info.id === "msg-assistant-1")
+    const part = assistant?.parts[0]
+    if (part?.type === "text") {
+        part.text = "I mapped the code path. <protect>Always preserve release checklist.</protect>"
+    }
+
+    const state = createSessionState()
+    const logger = new Logger(false)
+    const config = buildConfig()
+    config.compress.protectTags = true
+    const tool = createCompressMessageTool({
+        client: {
+            session: {
+                messages: async () => ({ data: rawMessages }),
+                get: async () => ({ data: { parentID: null } }),
+            },
+        },
+        state,
+        logger,
+        config,
+        prompts: {
+            reload() {},
+            getRuntimePrompts() {
+                return { compressMessage: "", compressRange: "" }
+            },
+        },
+    } as any)
+
+    await tool.execute(
+        {
+            topic: "Protected note",
+            content: [
+                {
+                    messageId: "m0002",
+                    topic: "Code path note",
+                    summary: "Captured the assistant's code-path findings.",
+                },
+            ],
+        },
+        {
+            ask: async () => {},
+            metadata: () => {},
+            sessionID,
+            messageID: "msg-compress-protect-tag",
+        },
+    )
+
+    const block = Array.from(state.prune.messages.blocksById.values())[0]
+    assert.match(
+        block?.summary || "",
+        /The following protected prompt information was included in this conversation verbatim:/,
+    )
+    assert.match(block?.summary || "", /Always preserve release checklist\./)
 })
 
 test("compress message mode stores call id for later duration attachment", async () => {
