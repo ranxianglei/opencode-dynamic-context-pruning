@@ -43,12 +43,9 @@ export function getCurrentTokenUsage(state: SessionState, messages: WithParts[])
             // Anthropic-style: input already includes the full context
             contextTokens = input + output + reasoning
         } else {
-            // No input tokens reported, use cacheRead as fallback
             contextTokens = cacheRead || 0
         }
 
-        // [DEBUG] Log token breakdown for diagnosis
-        try { require("fs").appendFileSync("/tmp/dcp-debug.log", `[getCurrentTokenUsage] ses=${state.sessionId?.slice(-8)} id=${msg.info.id.slice(-8)} tokens={input:${input}, output:${output}, reasoning:${reasoning}, cacheRead:${cacheRead}, cacheWrite:${cacheWrite}} contextTokens=${contextTokens} modelContextLimit=${state.modelContextLimit}\n`) } catch(_e){}
         return contextTokens
     }
 
@@ -63,8 +60,6 @@ export function getCurrentTokenUsage(state: SessionState, messages: WithParts[])
             }
         }
     }
-    // [DEBUG] Log fallback estimation
-    try { require("fs").appendFileSync("/tmp/dcp-debug.log", `[getCurrentTokenUsage FALLBACK] ses=${state.sessionId?.slice(-8)} estimated=${estimated} modelContextLimit=${state.modelContextLimit} messages=${messages.length}\n`) } catch(_e){}
     return estimated
 }
 

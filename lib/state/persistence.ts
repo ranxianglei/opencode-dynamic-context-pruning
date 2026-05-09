@@ -116,7 +116,6 @@ export async function saveSessionState(
     }
 
     await writePersistedSessionState(sessionState.sessionId, state, logger)
-    try { require("fs").appendFileSync("/tmp/dcp-debug.log", `[saveSessionState] sessionId=${sessionState.sessionId} messageIds_byRawId=${Object.keys(state.messageIds.byRawId).length} messageIds_byRef=${Object.keys(state.messageIds.byRef).length} lastCompaction=${state.lastCompaction}\n`) } catch(_e){}
 }
 
 export async function loadSessionState(

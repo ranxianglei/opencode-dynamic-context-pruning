@@ -62,7 +62,6 @@ export function createSystemPromptHandler(
     ) => {
         if (input.model?.limit?.context) {
             state.modelContextLimit = input.model.limit.context
-            try { require("fs").appendFileSync("/tmp/dcp-debug.log", `[systemPromptHandler] ses=${state.sessionId?.slice(-8)} modelContextLimit=${state.modelContextLimit} raw_limit=${JSON.stringify(input.model.limit)}\n`) } catch(_e){}
         }
 
         if (state.isSubAgent && !config.experimental.allowSubAgents) {

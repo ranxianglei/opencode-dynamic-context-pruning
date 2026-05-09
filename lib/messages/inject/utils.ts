@@ -187,9 +187,6 @@ export function isContextOverLimits(
         }
     }
 
-    // [DEBUG] Log limit calculation for diagnosis
-    try { require("fs").appendFileSync("/tmp/dcp-debug.log", `[isContextOverLimits] ses=${state.sessionId?.slice(-8)} currentTokens=${currentTokens} modelContextLimit=${state.modelContextLimit} minLimit=${minContextLimit} maxLimit=${maxContextLimit}(+${summaryTokenExtension}buf) overMin=${overMinLimit} overMax=${overMaxLimit}\n`) } catch(_e){}
-
     return {
         overMaxLimit,
         overMinLimit,
