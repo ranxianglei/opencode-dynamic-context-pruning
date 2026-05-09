@@ -36,20 +36,11 @@ export const syncCompressionBlocks = (
     const missingOriginBlockIds: number[] = []
     const orderedBlocks = Array.from(messagesState.blocksById.values()).sort(sortBlocksByCreation)
 
+    // [PATCH Bug 3] Removed compressMessageId presence check.
+    // Blocks should remain active even if the compress tool call message was
+    // removed by opencode's internal compaction. The block's existence IS proof
+    // that compression happened.
     for (const block of orderedBlocks) {
-        const hasOriginMessage =
-            typeof block.compressMessageId === "string" &&
-            block.compressMessageId.length > 0 &&
-            messageIds.has(block.compressMessageId)
-
-        if (!hasOriginMessage) {
-            block.active = false
-            block.deactivatedAt = now
-            block.deactivatedByBlockId = undefined
-            missingOriginBlockIds.push(block.blockId)
-            continue
-        }
-
         if (block.deactivatedByUser) {
             block.active = false
             if (block.deactivatedAt === undefined) {
@@ -57,6 +48,21 @@ export const syncCompressionBlocks = (
             }
             block.deactivatedByBlockId = undefined
             continue
+        }
+
+        // Only deactivate if anchor message is completely gone from both current messages AND DCP tracked messages
+        if (
+            typeof block.anchorMessageId === "string" &&
+            block.anchorMessageId.length > 0 &&
+            !messageIds.has(block.anchorMessageId)
+        ) {
+            // If anchor exists in DCP's byMessageId (persisted), keep block active
+            if (!messagesState.byMessageId.has(block.anchorMessageId)) {
+                block.active = false
+                block.deactivatedAt = now
+                block.deactivatedByBlockId = undefined
+                continue
+            }
         }
 
         for (const consumedBlockId of block.consumedBlockIds) {

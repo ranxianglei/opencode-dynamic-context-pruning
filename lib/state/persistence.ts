@@ -33,12 +33,20 @@ export interface PersistedNudges {
     iterationNudgeAnchors?: string[]
 }
 
+export interface PersistedMessageIds {
+    byRawId: Record<string, string>
+    byRef: Record<string, string>
+    nextRef: number
+}
+
 export interface PersistedSessionState {
     sessionName?: string
     prune: PersistedPrune
     nudges: PersistedNudges
     stats: SessionStats
     lastUpdated: string
+    messageIds?: PersistedMessageIds
+    lastCompaction?: number
 }
 
 const STORAGE_DIR = join(
@@ -76,38 +84,39 @@ async function writePersistedSessionState(
     })
 }
 
+// [FIX Bug 6] Removed try/catch — errors now propagate to callers so they know save failed
 export async function saveSessionState(
     sessionState: SessionState,
     logger: Logger,
     sessionName?: string,
 ): Promise<void> {
-    try {
-        if (!sessionState.sessionId) {
-            return
-        }
-
-        const state: PersistedSessionState = {
-            sessionName: sessionName,
-            prune: {
-                tools: Object.fromEntries(sessionState.prune.tools),
-                messages: serializePruneMessagesState(sessionState.prune.messages),
-            },
-            nudges: {
-                contextLimitAnchors: Array.from(sessionState.nudges.contextLimitAnchors),
-                turnNudgeAnchors: Array.from(sessionState.nudges.turnNudgeAnchors),
-                iterationNudgeAnchors: Array.from(sessionState.nudges.iterationNudgeAnchors),
-            },
-            stats: sessionState.stats,
-            lastUpdated: new Date().toISOString(),
-        }
-
-        await writePersistedSessionState(sessionState.sessionId, state, logger)
-    } catch (error: any) {
-        logger.error("Failed to save session state", {
-            sessionId: sessionState.sessionId,
-            error: error?.message,
-        })
+    if (!sessionState.sessionId) {
+        return
     }
+
+    const state: PersistedSessionState = {
+        sessionName: sessionName,
+        prune: {
+            tools: Object.fromEntries(sessionState.prune.tools),
+            messages: serializePruneMessagesState(sessionState.prune.messages),
+        },
+        nudges: {
+            contextLimitAnchors: Array.from(sessionState.nudges.contextLimitAnchors),
+            turnNudgeAnchors: Array.from(sessionState.nudges.turnNudgeAnchors),
+            iterationNudgeAnchors: Array.from(sessionState.nudges.iterationNudgeAnchors),
+        },
+        stats: sessionState.stats,
+        lastUpdated: new Date().toISOString(),
+        messageIds: {
+            byRawId: Object.fromEntries(sessionState.messageIds.byRawId),
+            byRef: Object.fromEntries(sessionState.messageIds.byRef),
+            nextRef: sessionState.messageIds.nextRef,
+        },
+        lastCompaction: sessionState.lastCompaction,
+    }
+
+    await writePersistedSessionState(sessionState.sessionId, state, logger)
+    try { require("fs").appendFileSync("/tmp/dcp-debug.log", `[saveSessionState] sessionId=${sessionState.sessionId} messageIds_byRawId=${Object.keys(state.messageIds.byRawId).length} messageIds_byRef=${Object.keys(state.messageIds.byRef).length} lastCompaction=${state.lastCompaction}\n`) } catch(_e){}
 }
 
 export async function loadSessionState(
@@ -188,6 +197,15 @@ export async function loadSessionState(
             })
         }
         state.nudges.iterationNudgeAnchors = dedupedIterationAnchors
+
+        const persistedMessageIds = (state as any).messageIds as PersistedMessageIds | undefined
+        if (persistedMessageIds) {
+            ;(state as any)._persistedMessageIds = persistedMessageIds
+        }
+        const persistedLastCompaction = (state as any).lastCompaction as number | undefined
+        if (persistedLastCompaction !== undefined) {
+            ;(state as any)._persistedLastCompaction = persistedLastCompaction
+        }
 
         logger.info("Loaded session state from disk", {
             sessionId: sessionId,

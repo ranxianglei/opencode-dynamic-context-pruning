@@ -61,11 +61,8 @@ export function createSystemPromptHandler(
         output: { system: string[] },
     ) => {
         if (input.model?.limit?.context) {
-            const inputBudget = computeInputBudget(input.model.limit)
-            if (inputBudget !== undefined) {
-                state.modelContextLimit = inputBudget
-            }
-            logger.debug("Cached model context limit", { limit: state.modelContextLimit })
+            state.modelContextLimit = input.model.limit.context
+            try { require("fs").appendFileSync("/tmp/dcp-debug.log", `[systemPromptHandler] ses=${state.sessionId?.slice(-8)} modelContextLimit=${state.modelContextLimit} raw_limit=${JSON.stringify(input.model.limit)}\n`) } catch(_e){}
         }
 
         if (state.isSubAgent && !config.experimental.allowSubAgents) {
@@ -132,10 +129,16 @@ export function createChatMessageTransformHandler(
         stripHallucinations(output.messages)
         cacheSystemPromptTokens(state, output.messages)
         assignMessageRefs(state, output.messages)
+        const activeBlockCountBefore = state.prune.messages.activeBlockIds.size // [FIX Bug 4]
         syncCompressionBlocks(state, logger, output.messages)
+        if (state.prune.messages.activeBlockIds.size !== activeBlockCountBefore) { // [FIX Bug 4]
+            void saveSessionState(state, logger) // [FIX Bug 4] persist deactivations
+        }
         syncToolCache(state, config, logger, output.messages)
         buildToolIdList(state, output.messages)
         prune(state, logger, config, output.messages)
+        // [FIX Bug 2] assign refs to newly created synthetic messages from prune/filterCompressedRanges
+        assignMessageRefs(state, output.messages)
         await injectExtendedSubAgentResults(
             client,
             state,

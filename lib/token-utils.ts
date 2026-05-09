@@ -31,10 +31,41 @@ export function getCurrentTokenUsage(state: SessionState, messages: WithParts[])
         const reasoning = assistantInfo.tokens?.reasoning || 0
         const cacheRead = assistantInfo.tokens?.cache?.read || 0
         const cacheWrite = assistantInfo.tokens?.cache?.write || 0
-        return input + output + reasoning + cacheRead + cacheWrite
+
+        // [FIX Bug 17] Provider-aware token estimation
+        // Anthropic API: input includes cached portion → input >= cacheRead → use input+output+reasoning
+        // GLM-5.1 / other providers: input is only non-cached tokens → cacheRead >> input → cacheRead ≈ actual context size
+        let contextTokens: number
+        if (cacheRead > input && input > 0) {
+            // Non-Anthropic provider: cacheRead is the best proxy for current context size
+            contextTokens = cacheRead
+        } else if (input > 0) {
+            // Anthropic-style: input already includes the full context
+            contextTokens = input + output + reasoning
+        } else {
+            // No input tokens reported, use cacheRead as fallback
+            contextTokens = cacheRead || 0
+        }
+
+        // [DEBUG] Log token breakdown for diagnosis
+        try { require("fs").appendFileSync("/tmp/dcp-debug.log", `[getCurrentTokenUsage] ses=${state.sessionId?.slice(-8)} id=${msg.info.id.slice(-8)} tokens={input:${input}, output:${output}, reasoning:${reasoning}, cacheRead:${cacheRead}, cacheWrite:${cacheWrite}} contextTokens=${contextTokens} modelContextLimit=${state.modelContextLimit}\n`) } catch(_e){}
+        return contextTokens
     }
 
-    return 0
+    // [FIX Bug 5] fallback: estimate tokens from message content when no assistant
+    // message has output tokens (first turn or after full compaction)
+    let estimated = 0
+    for (const m of messages) {
+        const parts = Array.isArray(m.parts) ? m.parts : []
+        for (const part of parts) {
+            if (part.type === "text" && typeof part.text === "string") {
+                estimated += countTokens(part.text)
+            }
+        }
+    }
+    // [DEBUG] Log fallback estimation
+    try { require("fs").appendFileSync("/tmp/dcp-debug.log", `[getCurrentTokenUsage FALLBACK] ses=${state.sessionId?.slice(-8)} estimated=${estimated} modelContextLimit=${state.modelContextLimit} messages=${messages.length}\n`) } catch(_e){}
+    return estimated
 }
 
 export function getCurrentParams(

@@ -167,8 +167,28 @@ export function isContextOverLimits(
     const minContextLimit = resolveContextTokenLimit(config, state, providerId, modelId, "min")
     const currentTokens = getCurrentTokenUsage(state, messages)
 
-    const overMaxLimit = maxContextLimit === undefined ? false : currentTokens > maxContextLimit
-    const overMinLimit = minContextLimit === undefined ? true : currentTokens >= minContextLimit
+    let overMaxLimit = maxContextLimit === undefined ? false : currentTokens > maxContextLimit
+    const overMinLimit = minContextLimit === undefined ? false : currentTokens >= minContextLimit
+
+    // [FIX Bug 20] Suppress overMax while cacheRead hasn't updated after compress
+    if (overMaxLimit) {
+        const recentCompressCount = 3
+        const recentMessages = messages.slice(-recentCompressCount)
+        for (const msg of recentMessages) {
+            if (msg.info.role === "assistant" && msg.parts) {
+                for (const part of msg.parts) {
+                    if (part.type === "tool-invocation" && part.toolInvocation?.toolName === "compress") {
+                        overMaxLimit = false
+                        break
+                    }
+                }
+            }
+            if (!overMaxLimit) break
+        }
+    }
+
+    // [DEBUG] Log limit calculation for diagnosis
+    try { require("fs").appendFileSync("/tmp/dcp-debug.log", `[isContextOverLimits] ses=${state.sessionId?.slice(-8)} currentTokens=${currentTokens} modelContextLimit=${state.modelContextLimit} minLimit=${minContextLimit} maxLimit=${maxContextLimit}(+${summaryTokenExtension}buf) overMin=${overMinLimit} overMax=${overMaxLimit}\n`) } catch(_e){}
 
     return {
         overMaxLimit,

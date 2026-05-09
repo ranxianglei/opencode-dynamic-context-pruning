@@ -210,8 +210,36 @@ const filterCompressedRanges = (
                         summaryLength: summaryContent.length,
                     })
                 } else {
-                    logger.warn("No user message found for compress summary", {
+                    // [FIX Bug 1] no preceding user message — build fallback base so summary is always injected
+                    const anchorInfo = msg.info as any
+                    const fallbackBase: WithParts = {
+                        info: {
+                            id: anchorInfo.id || msgId,
+                            sessionID: anchorInfo.sessionID || "",
+                            role: "user" as const,
+                            agent: anchorInfo.agent || "code",
+                            model:
+                                anchorInfo.model || {
+                                    providerID: "",
+                                    modelID: "",
+                                    variant: undefined,
+                                },
+                            time: { created: anchorInfo.time?.created || Date.now() },
+                        },
+                        parts: [],
+                    }
+                    const summaryContent =
+                        config.compress.mode === "message"
+                            ? replaceBlockIdsWithBlocked(rawSummaryContent)
+                            : rawSummaryContent
+                    const summarySeed = `${summary.blockId}:${summary.anchorMessageId}`
+                    result.push(
+                        createSyntheticUserMessage(fallbackBase, summaryContent, summarySeed),
+                    )
+
+                    logger.info("Injected compress summary (fallback, no preceding user message)", {
                         anchorMessageId: msgId,
+                        summaryLength: summaryContent.length,
                     })
                 }
             }

@@ -51,9 +51,10 @@ Treat these tags as boundary metadata only, not as tool result content.
 Rules:
 
 - Pick \`startId\` and \`endId\` directly from injected IDs in context.
-- IDs must exist in the current visible context.
+- IDs must exist in the current visible context. If you cannot see an ID in the messages above, it is stale and will fail.
 - \`startId\` must appear before \`endId\`.
 - Do not invent IDs. Use only IDs that are present in context.
+- NEVER use IDs from compressed block summaries, previous nudges, or your own memory — only IDs currently visible as XML metadata tags in the conversation.
 
 BATCHING
 When multiple independent ranges are ready and their boundaries do not overlap, include all of them as separate entries in the \`content\` array of a single tool call. Each entry should have its own \`startId\`, \`endId\`, and \`summary\`.

@@ -181,8 +181,22 @@ export async function ensureSessionInitialized(
         totalPruneTokens: persisted.stats?.totalPruneTokens || 0,
     }
 
+    const persistedAny = persisted as any
+    if (persistedAny._persistedMessageIds) {
+        state.messageIds = {
+            byRawId: new Map(Object.entries(persistedAny._persistedMessageIds.byRawId || {})),
+            byRef: new Map(Object.entries(persistedAny._persistedMessageIds.byRef || {})),
+            nextRef: persistedAny._persistedMessageIds.nextRef || 1,
+        }
+    }
+    if (persistedAny._persistedLastCompaction !== undefined) {
+        state.lastCompaction = Math.max(state.lastCompaction, persistedAny._persistedLastCompaction)
+    }
+
     const applied = applyPendingCompressionDurations(state)
     if (applied > 0) {
         await saveSessionState(state, logger)
     }
+    // [FIX Bug 1] Always save after initialization to persist messageIds + lastCompaction
+    await saveSessionState(state, logger)
 }

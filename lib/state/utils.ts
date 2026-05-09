@@ -9,12 +9,17 @@ import { isIgnoredUserMessage, messageHasCompress } from "../messages/query"
 import { isMessageWithInfo } from "../messages/shape"
 import { countTokens } from "../token-utils"
 
+// [FIX Bug 3] Added summary check to match getCurrentTokenUsage exclusion logic
 export const isMessageCompacted = (state: SessionState, msg: WithParts): boolean => {
     if (!isMessageWithInfo(msg)) {
         return false
     }
 
+    if (state.lastCompaction <= 0) return false
     if (msg.info.time.created < state.lastCompaction) {
+        return true
+    }
+    if (msg.info.summary === true && msg.info.time.created === state.lastCompaction) {
         return true
     }
     const pruneEntry = state.prune.messages.byMessageId.get(msg.info.id)
@@ -247,14 +252,9 @@ export function loadPruneMessagesState(
         }
     }
 
-    if (Array.isArray(persisted.activeBlockIds)) {
-        for (const blockId of persisted.activeBlockIds) {
-            if (!Number.isInteger(blockId) || blockId < 1) {
-                continue
-            }
-            state.activeBlockIds.add(blockId)
-        }
-    }
+    // [FIX Bug 11] Skip loading persisted activeBlockIds here.
+    // They will be correctly rebuilt from blocksById below (lines 273-286).
+    // Loading them here first caused stale IDs for blocks with active:false.
 
     if (
         persisted.activeByAnchorMessageId &&
@@ -331,12 +331,9 @@ export function getActiveSummaryTokenUsage(state: SessionState): number {
 export function resetOnCompaction(state: SessionState): void {
     state.toolParameters.clear()
     state.prune.tools = new Map<string, number>()
-    state.prune.messages = createPruneMessagesState()
-    state.messageIds = {
-        byRawId: new Map<string, string>(),
-        byRef: new Map<string, string>(),
-        nextRef: 1,
-    }
+    // [PATCH Bug 2] Preserve prune.messages (compression blocks) on compaction.
+    // Only reset transient state. Compression blocks are still valid even after
+    // opencode compacts — their summaries are still needed in context.
     state.nudges = {
         contextLimitAnchors: new Set<string>(),
         turnNudgeAnchors: new Set<string>(),

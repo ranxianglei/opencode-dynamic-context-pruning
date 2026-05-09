@@ -20,7 +20,10 @@ export function stripStaleMetadata(messages: WithParts[]): void {
             return
         }
 
-        if (message.info.modelID === modelID && message.info.providerID === providerID) {
+        // [FIX Bug 8] Guard against undefined modelID/providerID
+        const msgModelID = (message.info as any).modelID
+        const msgProviderID = (message.info as any).providerID
+        if (msgModelID === modelID && msgProviderID === providerID) {
             return
         }
 

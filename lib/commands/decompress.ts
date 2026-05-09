@@ -234,6 +234,14 @@ export async function handleDecompressCommand(ctx: DecompressCommandContext): Pr
         block.deactivatedByUser = true
         block.deactivatedAt = deactivatedAt
         block.deactivatedByBlockId = undefined
+
+        // [FIX Bug 10] Mark consumed inner blocks so syncCompressionBlocks won't re-activate them
+        for (const consumedId of block.consumedBlockIds) {
+            const consumedBlock = messagesState.blocksById.get(consumedId)
+            if (consumedBlock) {
+                consumedBlock.deactivatedByUser = true
+            }
+        }
     }
 
     syncCompressionBlocks(state, logger, messages)
