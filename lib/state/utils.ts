@@ -248,6 +248,14 @@ export function loadPruneMessagesState(
                         ? block.deactivatedByBlockId
                         : undefined,
                 summary: typeof block.summary === "string" ? block.summary : "",
+                survivedCount:
+                    typeof block.survivedCount === "number" && Number.isFinite(block.survivedCount)
+                        ? Math.max(0, Math.floor(block.survivedCount))
+                        : 0,
+                generation:
+                    block.generation === "young" || block.generation === "old"
+                        ? block.generation
+                        : undefined,
             })
         }
     }

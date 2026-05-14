@@ -55,6 +55,7 @@ function buildDetailedMessage(
 
 const TOAST_BODY_MAX_LINES = 12
 const TOAST_SUMMARY_MAX_CHARS = 600
+const NOTIFICATION_SUMMARY_MAX_CHARS = 1500
 
 function truncateToastBody(body: string, maxLines: number = TOAST_BODY_MAX_LINES): string {
     const lines = body.split("\n")
@@ -143,13 +144,18 @@ function buildCompressionSummary(
         return entries[0]?.summary ?? ""
     }
 
-    return entries
-        .map((entry) => {
-            const topic =
-                state.prune.messages.blocksById.get(entry.blockId)?.topic ?? "(unknown topic)"
-            return `### ${topic}\n${entry.summary}`
-        })
-        .join("\n\n")
+    let result = ""
+    for (const entry of entries) {
+        const topic =
+            state.prune.messages.blocksById.get(entry.blockId)?.topic ?? "(unknown topic)"
+        const section = `### ${topic}\n${entry.summary}`
+        if (result.length + section.length + 2 > NOTIFICATION_SUMMARY_MAX_CHARS) {
+            result += `\n\n... and ${entries.length - entries.indexOf(entry)} more`
+            break
+        }
+        result += (result ? "\n\n" : "") + section
+    }
+    return result
 }
 
 function getCompressionLabel(entries: CompressionNotificationEntry[]): string {
@@ -272,7 +278,11 @@ export async function sendCompressNotification(
             message += ` compressed`
         }
         if (config.compress.showCompression) {
-            message += `\n→ Compression (~${summaryTokensStr}): ${summary}`
+            const displaySummary =
+                summary.length > NOTIFICATION_SUMMARY_MAX_CHARS
+                    ? truncateToastSummary(summary, NOTIFICATION_SUMMARY_MAX_CHARS)
+                    : summary
+            message += `\n→ Compression (~${summaryTokensStr}): ${displaySummary}`
         }
     }
 
@@ -282,7 +292,7 @@ export async function sendCompressNotification(
             const truncatedSummary = truncateToastSummary(summary)
             if (truncatedSummary !== summary) {
                 toastMessage = toastMessage.replace(
-                    `\n→ Compression (~${summaryTokensStr}): ${summary}`,
+                    `\n→ Compression (~${summaryTokensStr}): ${truncateToastSummary(summary, NOTIFICATION_SUMMARY_MAX_CHARS)}`,
                     `\n→ Compression (~${summaryTokensStr}): ${truncatedSummary}`,
                 )
             }

@@ -32,21 +32,11 @@ export function getCurrentTokenUsage(state: SessionState, messages: WithParts[])
         const cacheRead = assistantInfo.tokens?.cache?.read || 0
         const cacheWrite = assistantInfo.tokens?.cache?.write || 0
 
-        // [FIX Bug 17] Provider-aware token estimation
-        // Anthropic API: input includes cached portion → input >= cacheRead → use input+output+reasoning
-        // GLM-5.1 / other providers: input is only non-cached tokens → cacheRead >> input → cacheRead ≈ actual context size
-        let contextTokens: number
-        if (cacheRead > input && input > 0) {
-            // Non-Anthropic provider: cacheRead is the best proxy for current context size
-            contextTokens = cacheRead
-        } else if (input > 0) {
-            // Anthropic-style: input already includes the full context
-            contextTokens = input + output + reasoning
-        } else {
-            contextTokens = cacheRead || 0
-        }
-
-        return contextTokens
+        // [FIX Bug 17] Universal token estimation
+        // opencode session.ts: adjustedInputTokens = inputTokens - cacheRead - cacheWrite
+        // So: input + cacheRead + cacheWrite = prompt_tokens (total input)
+        // Total context usage = prompt_tokens + output + reasoning
+        return input + cacheRead + cacheWrite + output + reasoning
     }
 
     // [FIX Bug 5] fallback: estimate tokens from message content when no assistant

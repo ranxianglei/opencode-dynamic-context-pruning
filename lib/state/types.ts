@@ -30,6 +30,8 @@ export interface PrunedMessageEntry {
 
 export type CompressionMode = "range" | "message"
 
+export type BlockGeneration = "young" | "old"
+
 export interface CompressionBlock {
     blockId: number
     runId: number
@@ -57,6 +59,8 @@ export interface CompressionBlock {
     deactivatedAt?: number
     deactivatedByBlockId?: number
     summary: string
+    survivedCount: number
+    generation?: BlockGeneration
 }
 
 export interface PruneMessagesState {

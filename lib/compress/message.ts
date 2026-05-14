@@ -127,6 +127,7 @@ export function createCompressMessageTool(ctx: ToolContext): ReturnType<typeof t
                     blockId,
                     storedSummary,
                     [],
+                    ctx.config.gc,
                 )
 
                 notifications.push({

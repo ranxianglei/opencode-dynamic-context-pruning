@@ -1,6 +1,9 @@
 import type { CompressionBlock, PruneMessagesState, SessionState } from "../state"
 import { formatBlockRef, formatMessageIdTag } from "../message-ids"
 import type { AppliedCompressionResult, CompressionStateInput, SelectionResolution } from "./types"
+import type { GCConfig } from "../config"
+
+const DEFAULT_PROMOTION_THRESHOLD = 5
 
 export const COMPRESSED_BLOCK_HEADER = "[Compressed conversation section]"
 
@@ -67,6 +70,7 @@ export function applyCompressionState(
     blockId: number,
     summary: string,
     consumedBlockIds: number[],
+    gcConfig?: GCConfig,
 ): AppliedCompressionResult {
     const messagesState = state.prune.messages
     const consumed = [...new Set(consumedBlockIds.filter((id) => Number.isInteger(id) && id > 0))]
@@ -134,6 +138,18 @@ export function applyCompressionState(
         effectiveToolIds: [...effectiveToolIds],
         createdAt,
         summary,
+        survivedCount: 0,
+        generation: "young",
+    }
+
+    const promotionThreshold = gcConfig?.promotionThreshold ?? DEFAULT_PROMOTION_THRESHOLD
+    for (const [activeId, activeBlock] of messagesState.blocksById) {
+        if (!activeBlock.active) continue
+        if (consumed.includes(activeId)) continue
+        activeBlock.survivedCount = (activeBlock.survivedCount || 0) + 1
+        if (activeBlock.survivedCount >= promotionThreshold) {
+            activeBlock.generation = "old"
+        }
     }
 
     messagesState.blocksById.set(blockId, block)

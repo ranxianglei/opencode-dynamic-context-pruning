@@ -43,7 +43,17 @@ function createMessageBoundary(messageId: string, rawIndex: number): BoundaryRef
     }
 }
 
-test("compress range placeholder validation keeps valid placeholders and ignores invalid ones", () => {
+test("parseBlockPlaceholders extracts block references from summary text", () => {
+    const summary = "Intro (b1) middle (b9) duplicate (b1) out-of-range (b2) outro"
+    const parsed = parseBlockPlaceholders(summary)
+
+    assert.deepEqual(
+        parsed.map((p) => p.blockId),
+        [1, 9, 1, 2],
+    )
+})
+
+test("validateSummaryPlaceholders filters to valid required blocks and returns missing", () => {
     const summaryByBlockId = new Map([
         [1, createBlock(1, "First compressed summary")],
         [2, createBlock(2, "Second compressed summary")],
@@ -60,27 +70,13 @@ test("compress range placeholder validation keeps valid placeholders and ignores
     )
 
     assert.deepEqual(
-        parsed.map((placeholder) => placeholder.blockId),
+        parsed.map((p) => p.blockId),
         [1],
     )
-    assert.equal(missingBlockIds.length, 0)
-
-    const injected = injectBlockPlaceholders(
-        summary,
-        parsed,
-        summaryByBlockId,
-        createMessageBoundary("msg-a", 0),
-        createMessageBoundary("msg-b", 1),
-    )
-
-    assert.match(injected.expandedSummary, /First compressed summary/)
-    assert.doesNotMatch(injected.expandedSummary, /Second compressed summary/)
-    assert.match(injected.expandedSummary, /\(b9\)/)
-    assert.match(injected.expandedSummary, /\(b2\)/)
-    assert.deepEqual(injected.consumedBlockIds, [1])
+    assert.deepEqual(missingBlockIds, [])
 })
 
-test("compress range continues by appending required block summaries the model omitted", () => {
+test("validateSummaryPlaceholders returns required blocks not referenced in summary", () => {
     const summaryByBlockId = new Map([[1, createBlock(1, "Recovered compressed summary")]])
     const summary = "The model forgot to include the prior block."
     const parsed = parseBlockPlaceholders(summary)
@@ -94,6 +90,22 @@ test("compress range continues by appending required block summaries the model o
     )
 
     assert.deepEqual(missingBlockIds, [1])
+})
+
+test("injectBlockPlaceholders returns summary unchanged (independent blocks)", () => {
+    const summaryByBlockId = new Map([
+        [1, createBlock(1, "First compressed summary")],
+        [2, createBlock(2, "Second compressed summary")],
+    ])
+    const summary = "Intro (b1) middle (b2) outro"
+    const parsed = parseBlockPlaceholders(summary)
+    validateSummaryPlaceholders(
+        parsed,
+        [1, 2],
+        createMessageBoundary("msg-a", 0),
+        createMessageBoundary("msg-b", 1),
+        summaryByBlockId,
+    )
 
     const injected = injectBlockPlaceholders(
         summary,
@@ -102,18 +114,25 @@ test("compress range continues by appending required block summaries the model o
         createMessageBoundary("msg-a", 0),
         createMessageBoundary("msg-b", 1),
     )
-    const finalSummary = appendMissingBlockSummaries(
-        injected.expandedSummary,
-        missingBlockIds,
-        summaryByBlockId,
-        injected.consumedBlockIds,
-    )
 
-    assert.match(
-        finalSummary.expandedSummary,
-        /The following previously compressed summaries were also part of this conversation section:/,
-    )
-    assert.match(finalSummary.expandedSummary, /### \(b1\)/)
-    assert.match(finalSummary.expandedSummary, /Recovered compressed summary/)
-    assert.deepEqual(finalSummary.consumedBlockIds, [1])
+    assert.equal(injected.expandedSummary, summary)
+    assert.deepEqual(injected.consumedBlockIds, [])
+})
+
+test("appendMissingBlockSummaries returns summary unchanged (independent blocks)", () => {
+    const summaryByBlockId = new Map([[1, createBlock(1, "Old summary")]])
+    const summary = "New compression summary"
+
+    const result = appendMissingBlockSummaries(summary, [1], summaryByBlockId, [])
+
+    assert.equal(result.expandedSummary, summary)
+    assert.deepEqual(result.consumedBlockIds, [])
+})
+
+test("appendMissingBlockSummaries forwards consumedBlockIds", () => {
+    const summary = "Summary text"
+    const result = appendMissingBlockSummaries(summary, [], new Map(), [5, 7])
+
+    assert.equal(result.expandedSummary, summary)
+    assert.deepEqual(result.consumedBlockIds, [5, 7])
 })

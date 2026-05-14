@@ -1,6 +1,12 @@
-export const ITERATION_NUDGE = `<dcp-system-reminder>
-You've been iterating for a while after the last user message.
+export const ITERATION_NUDGE = `
+<system-reminder>
+You've been iterating for a while. If any earlier work is closed and unlikely to be referenced, compress it now.
 
-If there is a closed portion that is unlikely to be referenced immediately (for example, finished research before implementation), use the compress tool on it now.
-</dcp-system-reminder>
+{
+  "topic": "Short Label",
+  "content": [{ "startId": "<visible message ID>", "endId": "<visible message ID>", "summary": "..." }]
+}
+
+⚠️ ONLY use IDs from <dcp-message-id> tags visible above. Do NOT invent or copy example IDs.
+</system-reminder>
 `

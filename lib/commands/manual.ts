@@ -35,7 +35,7 @@ function getTriggerPrompt(
 ): string {
     const base = COMPRESS_TRIGGER_PROMPT
     const compressedBlockGuidance =
-        config.compress.mode === "message" ? "" : buildCompressedBlockGuidance(state)
+        config.compress.mode === "message" ? "" : buildCompressedBlockGuidance(state, config.gc)
 
     const sections = [base, compressedBlockGuidance]
     if (userFocus && userFocus.trim().length > 0) {

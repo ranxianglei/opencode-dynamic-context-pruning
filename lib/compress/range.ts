@@ -88,7 +88,7 @@ export function createCompressRangeTool(ctx: ToolContext): ReturnType<typeof too
 
             for (const plan of resolvedPlans) {
                 const parsedPlaceholders = parseBlockPlaceholders(plan.entry.summary)
-                const missingBlockIds = validateSummaryPlaceholders(
+                validateSummaryPlaceholders(
                     parsedPlaceholders,
                     plan.selection.requiredBlockIds,
                     plan.selection.startReference,
@@ -133,9 +133,14 @@ export function createCompressRangeTool(ctx: ToolContext): ReturnType<typeof too
 
                 const completedSummary = appendMissingBlockSummaries(
                     summaryWithTools,
-                    missingBlockIds,
+                    [],
                     searchContext.summaryByBlockId,
                     injected.consumedBlockIds,
+                )
+
+                const mergeConsumedBlockIds = extractBoundaryConsumedBlocks(
+                    plan.selection.startReference,
+                    plan.selection.endReference,
                 )
 
                 preparedPlans.push({
@@ -143,7 +148,7 @@ export function createCompressRangeTool(ctx: ToolContext): ReturnType<typeof too
                     selection: plan.selection,
                     anchorMessageId: plan.anchorMessageId,
                     finalSummary: completedSummary.expandedSummary,
-                    consumedBlockIds: completedSummary.consumedBlockIds,
+                    consumedBlockIds: mergeConsumedBlockIds,
                 })
             }
 
@@ -172,6 +177,7 @@ export function createCompressRangeTool(ctx: ToolContext): ReturnType<typeof too
                     blockId,
                     storedSummary,
                     preparedPlan.consumedBlockIds,
+                    ctx.config.gc,
                 )
 
                 totalCompressedMessages += applied.messageIds.length
@@ -189,4 +195,19 @@ export function createCompressRangeTool(ctx: ToolContext): ReturnType<typeof too
             return `Compressed ${totalCompressedMessages} messages into ${COMPRESSED_BLOCK_HEADER}.`
         },
     })
+}
+
+function extractBoundaryConsumedBlocks(
+    startReference: { kind: string; blockId?: number },
+    endReference: { kind: string; blockId?: number },
+): number[] {
+    const consumed: number[] = []
+    const seen = new Set<number>()
+    for (const ref of [startReference, endReference]) {
+        if (ref.kind === "compressed-block" && ref.blockId !== undefined && !seen.has(ref.blockId)) {
+            seen.add(ref.blockId)
+            consumed.push(ref.blockId)
+        }
+    }
+    return consumed
 }

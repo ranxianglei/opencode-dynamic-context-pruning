@@ -1,18 +1,31 @@
-export const CONTEXT_LIMIT_NUDGE = `<dcp-system-reminder>
-CRITICAL WARNING: MAX CONTEXT LIMIT REACHED
+export const CONTEXT_LIMIT_NUDGE = `
+<system-reminder>
+⚠️ CRITICAL: Context limit reached. You MUST use the \`compress\` tool NOW.
 
-You are at or beyond the configured max context threshold. This is an emergency context-recovery moment.
+If mid-atomic-operation, finish that step first, then compress immediately.
 
-You MUST use the \`compress\` tool now. Do not continue normal exploration until compression is handled.
+HOW TO CALL COMPRESS:
+{
+  "topic": "Short Label",
+  "content": [
+    {
+      "startId": "<ID from early in this conversation>",
+      "endId": "<ID from later in this conversation>",
+      "summary": "Complete technical summary of everything in the range"
+    }
+  ]
+}
 
-If you are in the middle of a critical atomic operation, finish that atomic step first, then compress immediately.
+⚠️ ID RULES — MOST COMMON CAUSE OF ERRORS:
+- ONLY use IDs you can see in <dcp-message-id> tags in the messages ABOVE.
+- Do NOT copy IDs from this example. Do NOT invent IDs.
+- Do NOT use IDs from compressed block summaries — they are stale.
+- startId must appear BEFORE endId in the conversation.
 
-SELECTION PROCESS
-Start from older, resolved history and capture as much stale context as safely possible in one pass.
-Avoid the newest active working messages unless it is clearly closed.
-
-SUMMARY REQUIREMENTS
-Your summary MUST cover all essential details from the selected messages so work can continue.
-If the compressed range includes user messages, preserve user intent exactly. Prefer direct quotes for short user messages to avoid semantic drift.
-</dcp-system-reminder>
+SUMMARY RULES:
+- Capture ALL essential details: file paths, decisions, constraints, key findings.
+- Preserve user intent exactly. Direct-quote short user messages.
+- Prefer one large range over multiple small ones.
+- Compress OLDER resolved history first. Keep recent active work.
+</system-reminder>
 `

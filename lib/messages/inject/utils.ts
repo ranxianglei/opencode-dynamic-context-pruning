@@ -190,6 +190,8 @@ export function isContextOverLimits(
     return {
         overMaxLimit,
         overMinLimit,
+        currentTokens,
+        modelContextLimit: state.modelContextLimit,
     }
 }
 
@@ -352,20 +354,33 @@ function applyMessageModeAnchoredNudge(
     }
 }
 
+function buildContextUsageInfo(currentTokens?: number, modelContextLimit?: number): string {
+    if (currentTokens === undefined || modelContextLimit === undefined || modelContextLimit === 0) {
+        return ""
+    }
+    const percentage = ((currentTokens / modelContextLimit) * 100).toFixed(1)
+    const formatK = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n))
+    return `\n\nContext usage: ${formatK(currentTokens)} / ${formatK(modelContextLimit)} tokens (${percentage}%). DCP threshold: 55%.`
+}
+
 export function applyAnchoredNudges(
     state: SessionState,
     config: PluginConfig,
     messages: WithParts[],
     prompts: RuntimePrompts,
     compressionPriorities?: CompressionPriorityMap,
+    currentTokens?: number,
+    modelContextLimit?: number,
 ): void {
+    const contextUsageInfo = buildContextUsageInfo(currentTokens, modelContextLimit)
+    const contextLimitNudgeWithUsage = prompts.contextLimitNudge + contextUsageInfo
     const turnNudgeAnchors = collectTurnNudgeAnchors(state, config, messages)
 
     if (config.compress.mode === "message") {
         applyMessageModeAnchoredNudge(
             state.nudges.contextLimitAnchors,
             messages,
-            prompts.contextLimitNudge,
+            contextLimitNudgeWithUsage,
             compressionPriorities,
         )
         applyMessageModeAnchoredNudge(
@@ -383,11 +398,11 @@ export function applyAnchoredNudges(
         return
     }
 
-    const compressedBlockGuidance = buildCompressedBlockGuidance(state)
+    const compressedBlockGuidance = buildCompressedBlockGuidance(state, config.gc)
     applyRangeModeAnchoredNudge(
         state.nudges.contextLimitAnchors,
         messages,
-        prompts.contextLimitNudge,
+        contextLimitNudgeWithUsage,
         compressedBlockGuidance,
     )
     applyRangeModeAnchoredNudge(

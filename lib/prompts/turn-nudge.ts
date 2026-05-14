@@ -1,10 +1,12 @@
-export const TURN_NUDGE = `<dcp-system-reminder>
-Evaluate the conversation for compressible ranges.
+export const TURN_NUDGE = `
+<system-reminder>
+Context is getting full. Compress closed/older conversation ranges now.
 
-If any messages are cleanly closed and unlikely to be needed again, use the compress tool on them.
-If direction has shifted, compress earlier ranges that are now less relevant.
+{
+  "topic": "Short Label",
+  "content": [{ "startId": "<visible message ID>", "endId": "<visible message ID>", "summary": "..." }]
+}
 
-The goal is to filter noise and distill key information so context accumulation stays under control.
-Keep active context uncompressed.
-</dcp-system-reminder>
+⚠️ ONLY use IDs from <dcp-message-id> tags visible above. Do NOT invent or copy example IDs.
+</system-reminder>
 `

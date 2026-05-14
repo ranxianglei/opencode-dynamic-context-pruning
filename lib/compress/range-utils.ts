@@ -169,140 +169,26 @@ export function validateSummaryPlaceholders(
 
 export function injectBlockPlaceholders(
     summary: string,
-    placeholders: ParsedBlockPlaceholder[],
-    summaryByBlockId: Map<number, CompressionBlock>,
-    startReference: BoundaryReference,
-    endReference: BoundaryReference,
+    _placeholders: ParsedBlockPlaceholder[],
+    _summaryByBlockId: Map<number, CompressionBlock>,
+    _startReference: BoundaryReference,
+    _endReference: BoundaryReference,
 ): InjectedSummaryResult {
-    let cursor = 0
-    let expanded = summary
-    const consumed: number[] = []
-    const consumedSeen = new Set<number>()
-
-    if (placeholders.length > 0) {
-        expanded = ""
-        for (const placeholder of placeholders) {
-            const target = summaryByBlockId.get(placeholder.blockId)
-            if (!target) {
-                throw new Error(`Compressed block not found: (b${placeholder.blockId})`)
-            }
-
-            expanded += summary.slice(cursor, placeholder.startIndex)
-            expanded += restoreSummary(target.summary)
-            cursor = placeholder.endIndex
-
-            if (!consumedSeen.has(placeholder.blockId)) {
-                consumedSeen.add(placeholder.blockId)
-                consumed.push(placeholder.blockId)
-            }
-        }
-
-        expanded += summary.slice(cursor)
-    }
-
-    expanded = injectBoundarySummary(
-        expanded,
-        startReference,
-        "start",
-        summaryByBlockId,
-        consumed,
-        consumedSeen,
-    )
-    expanded = injectBoundarySummary(
-        expanded,
-        endReference,
-        "end",
-        summaryByBlockId,
-        consumed,
-        consumedSeen,
-    )
-
     return {
-        expandedSummary: expanded,
-        consumedBlockIds: consumed,
+        expandedSummary: summary,
+        consumedBlockIds: [],
     }
 }
 
 export function appendMissingBlockSummaries(
     summary: string,
-    missingBlockIds: number[],
-    summaryByBlockId: Map<number, CompressionBlock>,
+    _missingBlockIds: number[],
+    _summaryByBlockId: Map<number, CompressionBlock>,
     consumedBlockIds: number[],
 ): InjectedSummaryResult {
-    const consumedSeen = new Set<number>(consumedBlockIds)
-    const consumed = [...consumedBlockIds]
-
-    const missingSummaries: string[] = []
-    for (const blockId of missingBlockIds) {
-        if (consumedSeen.has(blockId)) {
-            continue
-        }
-
-        const target = summaryByBlockId.get(blockId)
-        if (!target) {
-            throw new Error(`Compressed block not found: (b${blockId})`)
-        }
-
-        missingSummaries.push(`\n### (b${blockId})\n${restoreSummary(target.summary)}`)
-        consumedSeen.add(blockId)
-        consumed.push(blockId)
-    }
-
-    if (missingSummaries.length === 0) {
-        return {
-            expandedSummary: summary,
-            consumedBlockIds: consumed,
-        }
-    }
-
-    const heading =
-        "\n\nThe following previously compressed summaries were also part of this conversation section:"
-
     return {
-        expandedSummary: summary + heading + missingSummaries.join(""),
-        consumedBlockIds: consumed,
+        expandedSummary: summary,
+        consumedBlockIds: [...consumedBlockIds],
     }
 }
 
-function restoreSummary(summary: string): string {
-    const headerMatch = summary.match(/^\s*\[Compressed conversation(?: section)?(?: b\d+)?\]/i)
-    if (!headerMatch) {
-        return summary
-    }
-
-    const afterHeader = summary.slice(headerMatch[0].length)
-    const withoutLeadingBreaks = afterHeader.replace(/^(?:\r?\n)+/, "")
-    return withoutLeadingBreaks
-        .replace(/(?:\r?\n)*<dcp-message-id>b\d+<\/dcp-message-id>\s*$/i, "")
-        .replace(/(?:\r?\n)+$/, "")
-}
-
-function injectBoundarySummary(
-    summary: string,
-    reference: BoundaryReference,
-    position: "start" | "end",
-    summaryByBlockId: Map<number, CompressionBlock>,
-    consumed: number[],
-    consumedSeen: Set<number>,
-): string {
-    if (reference.kind !== "compressed-block" || reference.blockId === undefined) {
-        return summary
-    }
-    if (consumedSeen.has(reference.blockId)) {
-        return summary
-    }
-
-    const target = summaryByBlockId.get(reference.blockId)
-    if (!target) {
-        throw new Error(`Compressed block not found: (b${reference.blockId})`)
-    }
-
-    const injectedBody = restoreSummary(target.summary)
-    const left = position === "start" ? injectedBody.trim() : summary.trim()
-    const right = position === "start" ? summary.trim() : injectedBody.trim()
-    const next = !left ? right : !right ? left : `${left}\n\n${right}`
-
-    consumedSeen.add(reference.blockId)
-    consumed.push(reference.blockId)
-    return next
-}

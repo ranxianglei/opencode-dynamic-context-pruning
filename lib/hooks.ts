@@ -39,6 +39,8 @@ import { type HostPermissionSnapshot } from "./host-permissions"
 import { compressPermission, syncCompressPermissionState } from "./compress-permission"
 import { checkSession, ensureSessionInitialized, saveSessionState, syncToolCache } from "./state"
 import { cacheSystemPromptTokens } from "./ui/utils"
+import { runTruncateGC, shouldRunMajorGC, getGCParams } from "./gc/truncate"
+import { getCurrentTokenUsage } from "./token-utils"
 
 const INTERNAL_AGENT_SIGNATURES = [
     "You are a title generator",
@@ -99,6 +101,57 @@ export function createSystemPromptHandler(
     }
 }
 
+function runMajorGC(
+    state: SessionState,
+    config: PluginConfig,
+    logger: Logger,
+    messages: WithParts[],
+): void {
+    if (!state.modelContextLimit) return
+
+    const currentTokens = getCurrentTokenUsage(state, messages)
+
+    // Check if any active block is oversized (summary > 2x maxOldGenSummaryLength)
+    // These should always be truncated regardless of token threshold
+    const oversizedThreshold = config.gc.maxOldGenSummaryLength * 2
+    let hasOversizedBlocks = false
+    for (const [, block] of state.prune.messages.blocksById) {
+        if (block.active && block.summary.length > oversizedThreshold) {
+            hasOversizedBlocks = true
+            break
+        }
+    }
+
+    if (!shouldRunMajorGC(currentTokens, state.modelContextLimit, config.gc) && !hasOversizedBlocks) return
+
+    const oldBlocks: import("./state").CompressionBlock[] = []
+    for (const [blockId, block] of state.prune.messages.blocksById) {
+        if (!block.active) continue
+        if (
+            block.generation === "old" ||
+            block.generation === undefined ||
+            block.summary.length > config.gc.maxOldGenSummaryLength
+        ) {
+            oldBlocks.push(block)
+        }
+    }
+
+    if (oldBlocks.length === 0) return
+
+    const params = getGCParams(config.gc, state.modelContextLimit, currentTokens)
+    const result = runTruncateGC(oldBlocks, params)
+
+    if (result.compactedBlocks > 0) {
+        logger.info("Major GC: truncated old-gen blocks", {
+            compactedBlocks: result.compactedBlocks,
+            savedTokens: result.savedTokens,
+            currentTokens,
+            threshold: config.gc.majorGcThresholdPercent,
+        })
+        void saveSessionState(state, logger)
+    }
+}
+
 export function createChatMessageTransformHandler(
     client: any,
     state: SessionState,
@@ -135,6 +188,7 @@ export function createChatMessageTransformHandler(
         }
         syncToolCache(state, config, logger, output.messages)
         buildToolIdList(state, output.messages)
+        runMajorGC(state, config, logger, output.messages)
         prune(state, logger, config, output.messages)
         // [FIX Bug 2] assign refs to newly created synthetic messages from prune/filterCompressedRanges
         assignMessageRefs(state, output.messages)

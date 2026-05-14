@@ -60,7 +60,7 @@ export const injectCompressNudges = (
     const { providerId, modelId } = getModelInfo(messages)
     let anchorsChanged = false
 
-    const { overMaxLimit, overMinLimit } = isContextOverLimits(
+    const { overMaxLimit, overMinLimit, currentTokens, modelContextLimit } = isContextOverLimits(
         config,
         state,
         providerId,
@@ -135,11 +135,67 @@ export const injectCompressNudges = (
         }
     }
 
-    applyAnchoredNudges(state, config, messages, prompts, compressionPriorities)
+    applyAnchoredNudges(state, config, messages, prompts, compressionPriorities, currentTokens, modelContextLimit)
+
+    injectContextUsage(messages, currentTokens, modelContextLimit)
+
+    injectVisibleIdRange(state, messages)
 
     if (anchorsChanged) {
         void saveSessionState(state, logger)
     }
+}
+
+function injectContextUsage(
+    messages: WithParts[],
+    currentTokens?: number,
+    modelContextLimit?: number,
+): void {
+    if (currentTokens === undefined || modelContextLimit === undefined || modelContextLimit === 0) {
+        return
+    }
+    const lastUser = getLastUserMessage(messages)
+    if (!lastUser) return
+
+    const percentage = ((currentTokens / modelContextLimit) * 100).toFixed(1)
+    const formatK = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n))
+    const usageTag = `\n\nContext usage: ${formatK(currentTokens)} / ${formatK(modelContextLimit)} tokens (${percentage}%). DCP threshold: 55%.`
+
+    for (const part of lastUser.parts) {
+        if (part.type === "text") {
+            appendToTextPart(part, usageTag)
+            return
+        }
+    }
+    lastUser.parts.push(createSyntheticTextPart(lastUser, usageTag))
+}
+
+function injectVisibleIdRange(state: SessionState, messages: WithParts[]): void {
+    const visibleRefs: string[] = []
+    for (const message of messages) {
+        const ref = state.messageIds.byRawId.get(message.info.id)
+        if (ref) {
+            visibleRefs.push(ref)
+        }
+    }
+
+    if (visibleRefs.length === 0) return
+
+    visibleRefs.sort()
+    const first = visibleRefs[0]
+    const last = visibleRefs[visibleRefs.length - 1]
+    const rangeTag = `\n\n[Visible message IDs: ${first} to ${last} (${visibleRefs.length} messages). Only use IDs in this range for compress.]`
+
+    const lastUser = getLastUserMessage(messages)
+    if (!lastUser) return
+
+    for (const part of lastUser.parts) {
+        if (part.type === "text") {
+            appendToTextPart(part, rangeTag)
+            return
+        }
+    }
+    lastUser.parts.push(createSyntheticTextPart(lastUser, rangeTag))
 }
 
 export const injectMessageIds = (

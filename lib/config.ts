@@ -55,6 +55,13 @@ export interface ExperimentalConfig {
     customPrompts: boolean
 }
 
+export interface GCConfig {
+    algorithm: "truncate"
+    promotionThreshold: number
+    maxOldGenSummaryLength: number
+    majorGcThresholdPercent: number | `${number}%`
+}
+
 export interface PluginConfig {
     enabled: boolean
     autoUpdate: boolean
@@ -67,6 +74,7 @@ export interface PluginConfig {
     experimental: ExperimentalConfig
     protectedFilePatterns: string[]
     compress: CompressConfig
+    gc: GCConfig
     strategies: {
         deduplication: Deduplication
         purgeErrors: PurgeErrors
@@ -126,6 +134,11 @@ export const VALID_CONFIG_KEYS = new Set([
     "compress.protectedTools",
     "compress.protectTags",
     "compress.protectUserMessages",
+    "gc",
+    "gc.algorithm",
+    "gc.promotionThreshold",
+    "gc.maxOldGenSummaryLength",
+    "gc.majorGcThresholdPercent",
     "strategies",
     "strategies.deduplication",
     "strategies.deduplication.enabled",
@@ -535,6 +548,49 @@ export function validateConfigTypes(config: Record<string, any>): ValidationErro
         }
     }
 
+    const gc = config.gc
+    if (gc !== undefined) {
+        if (typeof gc !== "object" || gc === null || Array.isArray(gc)) {
+            errors.push({
+                key: "gc",
+                expected: "object",
+                actual: typeof gc,
+            })
+        } else {
+            if (gc.algorithm !== undefined && gc.algorithm !== "truncate") {
+                errors.push({
+                    key: "gc.algorithm",
+                    expected: '"truncate"',
+                    actual: JSON.stringify(gc.algorithm),
+                })
+            }
+            if (gc.promotionThreshold !== undefined && typeof gc.promotionThreshold !== "number") {
+                errors.push({
+                    key: "gc.promotionThreshold",
+                    expected: "number",
+                    actual: typeof gc.promotionThreshold,
+                })
+            }
+            if (gc.maxOldGenSummaryLength !== undefined && typeof gc.maxOldGenSummaryLength !== "number") {
+                errors.push({
+                    key: "gc.maxOldGenSummaryLength",
+                    expected: "number",
+                    actual: typeof gc.maxOldGenSummaryLength,
+                })
+            }
+            if (gc.majorGcThresholdPercent !== undefined) {
+                const isValidNumber = typeof gc.majorGcThresholdPercent === "number"
+                const isPercentString = typeof gc.majorGcThresholdPercent === "string" && gc.majorGcThresholdPercent.endsWith("%")
+                if (!isValidNumber && !isPercentString) {
+                    errors.push({
+                        key: "gc.majorGcThresholdPercent",
+                        expected: 'number | "${number}%"',
+                        actual: JSON.stringify(gc.majorGcThresholdPercent),
+                    })
+                }
+            }
+        }
+    }
     const strategies = config.strategies
     if (strategies) {
         if (
@@ -700,6 +756,12 @@ const defaultConfig: PluginConfig = {
             turns: 4,
             protectedTools: [],
         },
+    },
+    gc: {
+        algorithm: "truncate",
+        promotionThreshold: 5,
+        maxOldGenSummaryLength: 3000,
+        majorGcThresholdPercent: "55%",
     },
 }
 
@@ -926,6 +988,7 @@ function deepCloneConfig(config: PluginConfig): PluginConfig {
                 protectedTools: [...config.strategies.purgeErrors.protectedTools],
             },
         },
+        gc: { ...config.gc },
     }
 }
 
@@ -947,6 +1010,7 @@ function mergeLayer(config: PluginConfig, data: Record<string, any>): PluginConf
             ...new Set([...config.protectedFilePatterns, ...(data.protectedFilePatterns ?? [])]),
         ],
         compress: mergeCompress(config.compress, data.compress as CompressOverride),
+        gc: { ...config.gc, ...(data.gc as Partial<GCConfig>) },
         strategies: mergeStrategies(config.strategies, data.strategies as any),
     }
 }
