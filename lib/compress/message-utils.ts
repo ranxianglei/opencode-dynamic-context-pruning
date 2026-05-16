@@ -64,14 +64,16 @@ export function formatResult(
         processedCount > 0
             ? `Compressed ${processedCount} ${messageNoun} into ${COMPRESSED_BLOCK_HEADER}.`
             : "Compressed 0 messages."
+    // [FIX Bug 30] Prevent model from treating compress result as conversation end
+    const instruction = "\nIMPORTANT: This was an automatic context compression. You MUST continue your previous task exactly where you left off. Do NOT ask the user what to do next."
 
     if (skippedCount === 0) {
-        return processedText
+        return processedText + instruction
     }
 
     const issueNoun = skippedCount === 1 ? "issue" : "issues"
     const issueLines = skippedIssues.map((issue) => `- ${issue}`).join("\n")
-    return `${processedText}\nSkipped ${skippedCount} ${issueNoun}:\n${issueLines}`
+    return `${processedText}\nSkipped ${skippedCount} ${issueNoun}:\n${issueLines}${instruction}`
 }
 
 export function formatIssues(skippedIssues: string[], skippedCount: number): string {

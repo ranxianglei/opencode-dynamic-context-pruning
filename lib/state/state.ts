@@ -188,6 +188,13 @@ export async function ensureSessionInitialized(
             byRef: new Map(Object.entries(persistedAny._persistedMessageIds.byRef || {})),
             nextRef: persistedAny._persistedMessageIds.nextRef || 1,
         }
+        // [FIX Bug 29] Auto-cleanup stale synthetic message refs from persistence
+        for (const [rawId, ref] of state.messageIds.byRawId) {
+            if (rawId.startsWith("msg_dcp_summary_") || rawId.startsWith("msg_dcp_text_")) {
+                state.messageIds.byRawId.delete(rawId)
+                state.messageIds.byRef.delete(ref)
+            }
+        }
     }
     if (persistedAny._persistedLastCompaction !== undefined) {
         state.lastCompaction = Math.max(state.lastCompaction, persistedAny._persistedLastCompaction)

@@ -134,6 +134,10 @@ export function assignMessageRefs(state: SessionState, messages: WithParts[]): n
         if (typeof rawMessageId !== "string" || rawMessageId.length === 0) {
             continue
         }
+        // [FIX Bug 29] Skip synthetic messages created by DCP
+        if (rawMessageId.startsWith("msg_dcp_summary_") || rawMessageId.startsWith("msg_dcp_text_")) {
+            continue
+        }
 
         const existingRef = state.messageIds.byRawId.get(rawMessageId)
         if (existingRef) {

@@ -5,6 +5,8 @@ import type { UserMessage } from "@opencode-ai/sdk/v2"
 
 const SUMMARY_ID_HASH_LENGTH = 16
 const DCP_BLOCK_ID_TAG_REGEX = /(<dcp-message-id(?=[\s>])[^>]*>)b\d+(<\/dcp-message-id>)/g
+// [FIX Bug 28] Regex to strip stale mNNNN refs from compressed summaries
+const DCP_MESSAGE_REF_TAG_REGEX = /<dcp-message-id>m\d+<\/dcp-message-id>/g
 const DCP_PAIRED_TAG_REGEX = /<dcp[^>]*>[\s\S]*?<\/dcp[^>]*>/gi
 const DCP_UNPAIRED_TAG_REGEX = /<\/?dcp[^>]*>/gi
 
@@ -160,6 +162,11 @@ export function buildToolIdList(state: SessionState, messages: WithParts[]): str
 
 export const replaceBlockIdsWithBlocked = (text: string): string => {
     return text.replace(DCP_BLOCK_ID_TAG_REGEX, "$1BLOCKED$2")
+}
+
+// [FIX Bug 28] Strip stale mNNNN refs from compressed summaries before injection
+export const stripStaleMessageRefs = (text: string): string => {
+    return text.replace(DCP_MESSAGE_REF_TAG_REGEX, "")
 }
 
 export const stripHallucinationsFromString = (text: string): string => {

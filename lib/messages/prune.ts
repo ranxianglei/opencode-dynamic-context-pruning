@@ -2,7 +2,7 @@ import type { SessionState, WithParts } from "../state"
 import type { Logger } from "../logger"
 import type { PluginConfig } from "../config"
 import { isMessageCompacted } from "../state/utils"
-import { createSyntheticUserMessage, replaceBlockIdsWithBlocked } from "./utils"
+import { createSyntheticUserMessage, replaceBlockIdsWithBlocked, stripStaleMessageRefs } from "./utils"
 import { getLastUserMessage } from "./query"
 import type { UserMessage } from "@opencode-ai/sdk/v2"
 
@@ -193,13 +193,15 @@ const filterCompressedRanges = (
                 // Find user message for variant and as base for synthetic message
                 const msgIndex = messages.indexOf(msg)
                 const userMessage = getLastUserMessage(messages, msgIndex)
+                // [FIX Bug 28] Strip stale mNNNN refs before injection
+                const _cleaned = stripStaleMessageRefs(rawSummaryContent)
 
                 if (userMessage) {
                     const userInfo = userMessage.info as UserMessage
                     const summaryContent =
                         config.compress.mode === "message"
-                            ? replaceBlockIdsWithBlocked(rawSummaryContent)
-                            : rawSummaryContent
+                            ? replaceBlockIdsWithBlocked(_cleaned)
+                            : _cleaned
                     const summarySeed = `${summary.blockId}:${summary.anchorMessageId}`
                     result.push(
                         createSyntheticUserMessage(userMessage, summaryContent, summarySeed),
@@ -230,8 +232,8 @@ const filterCompressedRanges = (
                     }
                     const summaryContent =
                         config.compress.mode === "message"
-                            ? replaceBlockIdsWithBlocked(rawSummaryContent)
-                            : rawSummaryContent
+                            ? replaceBlockIdsWithBlocked(_cleaned)
+                            : _cleaned
                     const summarySeed = `${summary.blockId}:${summary.anchorMessageId}`
                     result.push(
                         createSyntheticUserMessage(fallbackBase, summaryContent, summarySeed),
