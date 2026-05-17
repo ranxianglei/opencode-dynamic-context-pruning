@@ -398,23 +398,22 @@ export function applyAnchoredNudges(
         return
     }
 
-    const compressedBlockGuidance = buildCompressedBlockGuidance(state, config.gc)
     applyRangeModeAnchoredNudge(
         state.nudges.contextLimitAnchors,
         messages,
         contextLimitNudgeWithUsage,
-        compressedBlockGuidance,
+        "",
     )
     applyRangeModeAnchoredNudge(
         turnNudgeAnchors,
         messages,
         prompts.turnNudge,
-        compressedBlockGuidance,
+        "",
     )
     applyRangeModeAnchoredNudge(
         state.nudges.iterationNudgeAnchors,
         messages,
         prompts.iterationNudge,
-        compressedBlockGuidance,
+        "",
     )
 }

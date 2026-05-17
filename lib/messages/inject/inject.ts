@@ -29,6 +29,7 @@ import {
     getModelInfo,
     isContextOverLimits,
 } from "./utils"
+import { buildCompressedBlockGuidance } from "../../prompts/extensions/nudge"
 
 export const injectCompressNudges = (
     state: SessionState,
@@ -138,6 +139,14 @@ export const injectCompressNudges = (
     applyAnchoredNudges(state, config, messages, prompts, compressionPriorities, currentTokens, modelContextLimit)
 
     injectContextUsage(messages, currentTokens, modelContextLimit)
+
+    if (config.compress.mode !== "message") {
+        const blockGuidance = buildCompressedBlockGuidance(state, config.gc)
+        if (blockGuidance.trim()) {
+            const lastUser = getLastUserMessage(messages)
+            if (lastUser) appendToLastTextPart(lastUser, "\n\n" + blockGuidance)
+        }
+    }
 
     injectVisibleIdRange(state, messages)
 
