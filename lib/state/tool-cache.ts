@@ -51,7 +51,12 @@ export function syncToolCache(
                     continue
                 }
 
-                const tokenCount = countToolTokens(part)
+                // [FIX Bug 33] Use fast token estimate instead of expensive Anthropic tokenizer
+                // The tokenizer takes ~50ms per call; with 500+ tools that's 25 seconds.
+                // text.length / 4 is accurate enough for pruning decisions.
+                const contents = extractToolContent(part)
+                const rawLength = contents.reduce((sum: number, s: string) => sum + (s?.length ?? 0), 0)
+                const tokenCount = Math.round(rawLength / 4)
 
                 state.toolParameters.set(part.callID, {
                     tool: part.tool,

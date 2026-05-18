@@ -89,21 +89,25 @@ export class Logger {
     }
 
     info(message: string, data?: any) {
+        if (!this.enabled) return
         const component = this.getCallerFile(2)
         return this.write("INFO", component, message, data)
     }
 
     debug(message: string, data?: any) {
+        if (!this.enabled) return
         const component = this.getCallerFile(2)
         return this.write("DEBUG", component, message, data)
     }
 
     warn(message: string, data?: any) {
+        if (!this.enabled) return
         const component = this.getCallerFile(2)
         return this.write("WARN", component, message, data)
     }
 
     error(message: string, data?: any) {
+        if (!this.enabled) return
         const component = this.getCallerFile(2)
         return this.write("ERROR", component, message, data)
     }
